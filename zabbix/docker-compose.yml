@@ -1,0 +1,88 @@
+#!/bin/sh
+# Docker Compose to run Zabbix using Docker
+# Everaldo Jr. <everald.souzajr@gmail.com>
+# Date: 23/06/2018
+#
+# Images useds:
+#   - MariaDB
+#   - Zabbix Server for MySQL
+#   - Zabbix Web for MySQL
+#   - Zabbix Agent
+#
+# Volume Path:
+#   /zabbix/mysql
+#
+# IP Address for Monitoring your Server (127.0.0.1 not works):
+#   172.16.100.101
+
+version: "3"
+
+services:
+  database:
+    image: mariadb
+    restart: always
+    expose:
+      - 3306
+    volumes:
+      - /zabbix/mysql:/var/lib/mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+    networks:
+      zabbix_net:
+        ipv4_address: 172.16.100.200
+
+  server:
+    image: zabbix/zabbix-server-mysql
+    depends_on:
+      - database
+    restart: always
+    environment:
+      - DB_SERVER_HOST=database
+      - MYSQL_USER=root
+      - MYSQL_PASSWORD=root
+    networks:
+      zabbix_net:
+        ipv4_address: 172.16.100.100
+    ports:
+      - "10051:10051"
+
+  agent:
+    image: zabbix/zabbix-agent
+    depends_on:
+      - server
+    restart: always
+    environment:
+      - ZBX_SERVER_HOST=server
+      - ZBX_HOSTNAME=ZabbixServer
+    networks:
+      zabbix_net:
+        #Use this IP address for monitoring your server
+        ipv4_address: 172.16.100.101
+    expose:
+      - 10050
+
+  web:
+    image: zabbix/zabbix-web-nginx-mysql
+    depends_on:
+      - database
+      - server
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - DB_SERVER_HOST=database
+      - MYSQL_USER=root
+      - MYSQL_PASSWORD=root
+      - ZBX_SERVER_HOST=server
+    networks:
+      zabbix_net:
+        ipv4_address: 172.16.100.102
+
+networks:
+  zabbix_net:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.16.100.0/24
